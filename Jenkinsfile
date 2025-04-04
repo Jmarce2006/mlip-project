@@ -2,51 +2,38 @@ pipeline {
     agent any
 
     environment {
-        CONDA_ENV = 'mlip'
+        FLASK_PORT = "8082"
+        CONDA_ENV = "mlip"
+        CONDA_BIN = "/opt/conda/bin/conda"
     }
 
     stages {
-        stage('Build') {
-            steps {
-                sh '''
-                echo 'In Python, this stage is usually for packaging or skipping.'
-                '''
-            }
-        }
 
         stage('Set Up Conda Environment') {
             steps {
-                sh '''
+                sh '''#!/bin/bash
                 echo "Activating conda environment: $CONDA_ENV"
-                conda info --envs
-                conda run -n $CONDA_ENV python --version
+                $CONDA_BIN run -n $CONDA_ENV python --version
                 '''
             }
         }
 
         stage('Run API in Background') {
             steps {
-                sh '''
+                sh '''#!/bin/bash
                 echo "Starting the Flask API..."
-
-                # Start the API in the background
-                nohup conda run -n $CONDA_ENV python src/recommender_api.py > api.log 2>&1 &
-
-                # Wait for the API to be ready
-                for i in {1..10}; do
-                    echo "Waiting for API to be up..."
-                    curl -s http://localhost:8082/recommend/1 && break
-                    sleep 2
-                done
+                nohup $CONDA_BIN run -n $CONDA_ENV python src/recommender_api.py > flask.log 2>&1 &
+                sleep 5  # wait for API to initialize
                 '''
             }
         }
 
         stage('Run Tests') {
             steps {
-                sh '''
+                sh '''#!/bin/bash
                 echo "Running tests with pytest..."
-                conda run -n $CONDA_ENV pytest --disable-warnings
+                $CONDA_BIN run -n $CONDA_ENV pytest --disable-warnings
+                echo "Tests finished"
                 '''
             }
         }
@@ -61,9 +48,7 @@ pipeline {
     post {
         always {
             echo 'Cleaning up...'
-            sh '''
-            pkill -f recommender_api.py || true
-            '''
+            sh 'pkill -f recommender_api.py || true'
         }
     }
 }
