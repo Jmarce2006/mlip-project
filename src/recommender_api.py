@@ -7,14 +7,27 @@ from kafka import KafkaProducer
 import json
 import time
 import socket
+import logging
 
 app = Flask(__name__)
 
-producer = KafkaProducer(
-    bootstrap_servers='localhost:9092',  
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize Kafka producer as None
+producer = None
 KAFKA_TOPIC = 'recommender_api_logs'
+
+# Try to setup Kafka producer
+try:
+    producer = KafkaProducer(
+        bootstrap_servers='localhost:9092',
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    logger.info("Successfully connected to Kafka")
+except Exception as e:
+    logger.warning(f"Failed to connect to Kafka: {str(e)}. Logging to Kafka will be disabled.")
 
 # Load the model
 model = pickle.load(open("models/svd_model.pkl", "rb"))
@@ -52,8 +65,13 @@ def recommend(user_id):
             "responsetime": round((time.time() - start_time) * 1000, 2)  # in ms
         }
 
-        # Send to Kafka
-        producer.send(KAFKA_TOPIC, log_message)
+        # Send to Kafka only if producer is available
+        if producer is not None:
+            try:
+                producer.send(KAFKA_TOPIC, log_message)
+            except Exception as e:
+                logger.error(f"Failed to send message to Kafka: {str(e)}")
+        
         return ",".join(top_ids), 200
 
     except Exception as e:
