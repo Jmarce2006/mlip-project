@@ -18,7 +18,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: mlip
-          python-version: 3.10
+          python-version: '3.10'
           auto-activate-base: false
 
       - name: Install pip dependencies
